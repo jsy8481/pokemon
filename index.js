@@ -47,6 +47,7 @@ collisionMap.forEach((row, rowNo) => {
 })
 
 class Sprite {
+    // 이미지 크기가 조금 더 큰가본데..?
     constructor({position, velocity, image, frames = {max: 1, current: 1, elapsedTime}}) {
         this.position = position;
         this.velocity = velocity;
@@ -95,7 +96,7 @@ const player = new Sprite({
         y: canvas.height / 2 - playerImage.height / 2,
     },
     image: playerImage,
-    velocity: 10,
+    velocity: 3,
     frames: {
         max: 4,
         current: 1,
@@ -117,6 +118,7 @@ class KeyBoard {
         // w (위) a (왼쪽) s (아래) d (오른쪽)
         this.moveKeys = ["w", "a", "s", "d"];
         this.lastKeys = [];
+        this.savedLastKey = ""; // 충돌 감지가 되던 중 리스트에서 제거되는 경우가 발생 / 리스트에 없더라도 가장 마지막에 눌렸었던 키를 반환함
     }
     get lastMoveKey() {
         return this.lastKeys[this.lastKeys.length - 1];
@@ -135,10 +137,10 @@ class KeyBoard {
         this.lastKeys.splice(targetKeyIndex, 1);
     }
     addMoveKeyInLastKeys(targetKey) {
-        if (isCollision) return;
         if (!this.checkIsMoveKey(targetKey)) {
             return;
         }
+        this.savedLastKey = targetKey;
         if (this.findKeyInLastKeys(targetKey)) {
             return;
         }
@@ -170,59 +172,73 @@ function checkRectangularCollision({rectangle1, rectangle2}) {
         rectangle1.position.y < rectangle2.position.y + rectangle2.height
 }
 
-function moveMovableUseKeyBoard(velocity, moveKey) {
-    if (moveKey === "w") {
-        movables.forEach((movable) => {
-            movable.position.y += velocity ;
-        })
-    } else if (moveKey === "s") {
-        movables.forEach((movable) => {
-            movable.position.y -= velocity;
-        })
-    } else if (moveKey === "a") {
-        movables.forEach((movable) => {
-            movable.position.x += velocity;
-        })
-    } else if (moveKey === "d") {
-        movables.forEach((movable) => {
-            movable.position.x -= velocity;
+class MovableManager {
+    constructor({movables}) {
+        this.movables = movables;
+        this.moveKeys = ["w", "s", "a", "d"];
+        this.lastMoveInfo = {velocity: 0, moveKey: ""};
+    }
+    move({velocity, moveKey}) {
+        if (!this.moveKeys.find((curMoveKey) => curMoveKey === moveKey)) return;
+
+        if (moveKey === "w") {
+            this.movables.forEach((movable) => {
+                movable.position.y += velocity ;
+            })
+        } else if (moveKey === "s") {
+            this.movables.forEach((movable) => {
+                movable.position.y -= velocity;
+            })
+        } else if (moveKey === "a") {
+            this.movables.forEach((movable) => {
+                movable.position.x += velocity;
+            })
+        } else if (moveKey === "d") {
+            this.movables.forEach((movable) => {
+                movable.position.x -= velocity;
+            })
+        }
+        this.lastMoveInfo = {velocity, moveKey};
+    }
+    reset() {
+        this.move({moveKey: this.lastMoveInfo.moveKey, velocity: -this.lastMoveInfo.velocity})
+    }
+}
+const movables = [background, ...boundaries];
+const movableManager = new MovableManager({movables})
+
+class BoundariesManager {
+    constructor({boundaries}) {
+        this.boundaries = boundaries;
+    }
+    checkCollision({player}) {
+        for (let i = 0; i < this.boundaries.length; i++) {
+            checkRectangularCollision({rectangle1: boundaries[i], rectangle2: player})
+            if (checkRectangularCollision({rectangle1: boundaries[i], rectangle2: player})) {
+                return true;
+            }
+        }
+    }
+    drawBoundaries() {
+        this.boundaries.forEach((boundary) => {
+            boundary.draw();
         })
     }
 }
-// 충돌 감지
-// 충돌 상태일 때 다른 키가 입력되서 반대로 가는 경우가 생김
-// 충돌이 되면 키입력을 막고, 일단 온 방향의 반대로 보내주고 싶음
-const movables = [background, ...boundaries];
-let isCollision = false;
-let collsionLastKey = null;
-
+const boundariesManager = new BoundariesManager({boundaries})
+const playerPreviousPosition = 0;
 function animate() {
     window.requestAnimationFrame(animate);
     background.draw();
+    boundariesManager.drawBoundaries();
     boundaries.forEach((boundary) => {
         boundary.draw();
     })
     player.draw();
 
-    let collisionInfo;
-
-    isCollision = false;
-    for (let i = 0; i < boundaries.length; i++) {
-        collisionInfo = checkRectangularCollision({rectangle1: boundaries[i], rectangle2: player})
-        if (collisionInfo) {
-            isCollision = true;
-            collsionLastKey = collsionLastKey ?? keyboard.lastMoveKey;
-            break;
-        }
-    }
-    if (!isCollision) {
-        collsionLastKey = null;
-    }
-    console.log(collisionInfo, collsionLastKey);
-    if (collisionInfo) {
-        moveMovableUseKeyBoard(-player.velocity, collsionLastKey);
-    } else {
-        moveMovableUseKeyBoard(player.velocity, keyboard.lastMoveKey);
+    movableManager.move({velocity: player.velocity, moveKey: keyboard.lastMoveKey});
+    if (boundariesManager.checkCollision({player})) {
+        movableManager.reset();
     }
 }
 animate()
