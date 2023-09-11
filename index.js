@@ -48,7 +48,7 @@ collisionMap.forEach((row, rowNo) => {
 
 class Sprite {
     // 이미지 크기가 조금 더 큰가본데..?
-    constructor({position, velocity, image, frames = {max: 1, current: 1, elapsedTime}}) {
+    constructor({position, velocity, image, frames = {max: 1, current: 1,}}) {
         this.position = position;
         this.velocity = velocity;
         this.image = image;
@@ -61,13 +61,14 @@ class Sprite {
 
     draw() {
         this.frames.current = (this.frames.current + 1) % this.frames.max;
+        console.log(this.width, this.height, this.image.src);
 
         context.drawImage(
             this.image,
             this.width * this.frames.current, // sx - source 내에서 보여주기 시작할 좌표
             0, // sy - source 내에서 보여주기 시작할 좌표
             this.width,
-            this.image.height,
+            this.height,
             this.position.x,
             this.position.y,
             this.width,
@@ -105,12 +106,22 @@ const player = new Sprite({
 
 const backgroundImageSource = new Image()
 backgroundImageSource.src = "./gameAssets/Pellet Town.png";
-const background = new DefaultImage({
+const background = new Sprite({
     position: {
         x: backgroundOffset.x,
         y: backgroundOffset.y,
     },
     image: backgroundImageSource,
+})
+
+const foreGroundImage = new Image()
+foreGroundImage.src = "./gameAssets/foregroundObjects.png";
+const foreGround = new Sprite({
+    position: {
+        x: backgroundOffset.x,
+        y: backgroundOffset.y,
+    },
+    image: foreGroundImage,
 })
 
 class KeyBoard {
@@ -204,7 +215,7 @@ class MovableManager {
         this.move({moveKey: this.lastMoveInfo.moveKey, velocity: -this.lastMoveInfo.velocity})
     }
 }
-const movables = [background, ...boundaries];
+const movables = [background, foreGround, ...boundaries];
 const movableManager = new MovableManager({movables})
 
 class BoundariesManager {
@@ -235,6 +246,7 @@ function animate() {
         boundary.draw();
     })
     player.draw();
+    foreGround.draw();
 
     movableManager.move({velocity: player.velocity, moveKey: keyboard.lastMoveKey});
     if (boundariesManager.checkCollision({player})) {
